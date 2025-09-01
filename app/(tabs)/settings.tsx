@@ -24,6 +24,7 @@ import { formatCurrency, safeNumber } from '../../utils/helpers';
 import PinModal from '../../components/PinModal';
 import Icon from '../../components/Icon';
 import ProfileImage from '../../components/ProfileImage';
+import AccountManager from '../../components/AccountManager';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useThemedStyles } from '../../hooks/useThemedStyles';
 import { getThemeColors } from '../../styles/commonStyles';
@@ -45,11 +46,16 @@ function SettingsScreen() {
     transactions, 
     setProfile, 
     updateAccounts, 
+    addAccount,
+    updateAccount,
+    deleteAccount,
     exportData, 
     importData, 
     clearAllData,
     loadData,
-    authenticate
+    authenticate,
+    getTotalBalance,
+    getAccountsList
   } = useExpenseStore();
 
   const { theme, toggleTheme } = useTheme();
@@ -70,6 +76,7 @@ function SettingsScreen() {
   const [customEndDate, setCustomEndDate] = useState(new Date());
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const [showAccountManager, setShowAccountManager] = useState(false);
 
 
   React.useEffect(() => {
@@ -266,7 +273,7 @@ const generateDetailedPDF = async (dateRange = 'complete', startDate = null, end
     monthlyStats.cashflow = monthlyStats.income - monthlyStats.expenses + monthlyStats.borrowAmount - monthlyStats.lendAmount;
     setProgress(10);
     setProgressText('Calculating account balances...');
-    const netWorth = safeMathNumber(accounts.cash) + safeMathNumber(accounts.bank);
+    const netWorth = getTotalBalance();
     const currencySymbol = getCurrencySymbol();
     
     setProgress(20);
@@ -586,24 +593,23 @@ const generateDetailedPDF = async (dateRange = 'complete', startDate = null, end
           <table>
             <thead>
               <tr>
-                <th>Account Type</th>
+                <th>Account Name</th>
+                <th>Type</th>
                 <th>Current Balance</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td class="font-bold">💵 Cash Holdings</td>
-                <td class="font-bold">${currencySymbol}${safeMathNumber(accounts.cash).toLocaleString()}</td>
-                <td><span class="status-settled">Liquid</span></td>
-              </tr>
-              <tr>
-                <td class="font-bold">🏦 Bank Account</td>
-                <td class="font-bold">${currencySymbol}${safeMathNumber(accounts.bank).toLocaleString()}</td>
-                <td><span class="status-settled">Active</span></td>
-              </tr>
+              ${accountsList.map(account => `
+                <tr>
+                  <td class="font-bold">${account.name}</td>
+                  <td>${account.type.charAt(0).toUpperCase() + account.type.slice(1)}</td>
+                  <td class="font-bold">${currencySymbol}${safeMathNumber(account.balance).toLocaleString()}</td>
+                  <td><span class="status-settled">Active</span></td>
+                </tr>
+              `).join('')}
               <tr class="highlight-row">
-                <td class="font-bold">🎯 Total Net Worth</td>
+                <td class="font-bold" colspan="2">🎯 Total Net Worth</td>
                 <td class="font-bold">${currencySymbol}${safeMathNumber(netWorth).toLocaleString()}</td>
                 <td><span class="${safeMathNumber(netWorth) >= 0 ? 'status-settled' : 'status-pending'}">${safeMathNumber(netWorth) >= 0 ? 'Positive' : 'Negative'}</span></td>
               </tr>
@@ -1185,6 +1191,8 @@ const generateDetailedPDF = async (dateRange = 'complete', startDate = null, end
   const totalExpenses = transactions
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
+  
+  const accountsList = getAccountsList();
 
   return (
     <ScrollView style={themedStyles.container} showsVerticalScrollIndicator={false}>
@@ -1349,11 +1357,32 @@ const generateDetailedPDF = async (dateRange = 'complete', startDate = null, end
           <View style={themedStyles.statCard}>
             <Icon name="wallet-outline" size={24} style={[themedStyles.statIcon, { color: colors.primary }]} />
             <Text style={[themedStyles.statValue, { color: colors.primary }]}>
-              {getCurrencySymbol()}{(accounts.cash + accounts.bank).toFixed(2)}
+              {getCurrencySymbol()}{getTotalBalance().toFixed(2)}
             </Text>
             <Text style={themedStyles.statLabel}>Net Worth</Text>
           </View>
         </View>
+      </View>
+
+      {/* Account Management Section */}
+      <View style={themedStyles.section}>
+        <Text style={themedStyles.sectionTitle}>Account Management</Text>
+        
+        <TouchableOpacity 
+          style={themedStyles.settingItem} 
+          onPress={() => setShowAccountManager(true)}
+        >
+          <View style={themedStyles.settingLeft}>
+            <Icon name="wallet-outline" size={24} style={themedStyles.settingIcon} />
+            <View>
+              <Text style={themedStyles.settingTitle}>Manage Accounts</Text>
+              <Text style={themedStyles.settingSubtitle}>
+                {accountsList.length} account{accountsList.length !== 1 ? 's' : ''} • {getCurrencySymbol()}{getTotalBalance().toFixed(2)} total
+              </Text>
+            </View>
+          </View>
+          <Icon name="chevron-forward" size={20} style={themedStyles.chevron} />
+        </TouchableOpacity>
       </View>
 
       {/* Data Management Section */}
@@ -1696,9 +1725,9 @@ const generateDetailedPDF = async (dateRange = 'complete', startDate = null, end
                       await setProfile(backupData.profile);
                       await updateAccounts(backupData.accounts);
                       
-                      // Import transactions
+                      // Import transactions without updating balances
                       for (const transaction of backupData.transactions) {
-                        await useExpenseStore.getState().addTransaction(transaction);
+                        await useExpenseStore.getState().importTransaction(transaction);
                       }
                       
                       Alert.alert('Success', 'Complete backup restored successfully!');
@@ -1719,6 +1748,12 @@ const generateDetailedPDF = async (dateRange = 'complete', startDate = null, end
           </View>
         </Modal>
       )}
+
+      {/* Account Manager */}
+      <AccountManager 
+        visible={showAccountManager}
+        onClose={() => setShowAccountManager(false)}
+      />
 
       {/* PIN Modal */}
       <PinModal
@@ -2130,6 +2165,7 @@ const createStyles = (colors, isDark) => ({
     borderWidth: 1,
     borderColor: colors.border,
   },
+
 });
 
 // For backward compatibility

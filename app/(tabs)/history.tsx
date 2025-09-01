@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Alert } from 'react-native';
 import { useExpenseStore, Transaction } from '../../stores/useExpenseStore';
 import { formatCurrency, formatDate, getTransactionIcon, getTransactionColor } from '../../utils/helpers';
@@ -6,41 +6,39 @@ import PinModal from '../../components/PinModal';
 import Icon from '../../components/Icon';
 
 function HistoryScreen() {
-  const { transactions, loadData, authenticate, settleBorrowLend, profile } = useExpenseStore();
+  const { transactions, loadData, authenticate, settleBorrowLend, profile, getAccountsList } = useExpenseStore();
   const isDark = profile.theme === 'dark';
   const styles = getStyles(isDark);
-  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
+  // Removed useState for filteredTransactions
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [showPinModal, setShowPinModal] = useState(false);
   const [pendingSettlement, setPendingSettlement] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // Remove unnecessary loadData call since data is already in store
 
-  useEffect(() => {
-    let filtered = [...transactions];
+  // Memoized filtered transactions
+  const filteredTransactions = useMemo(() => {
+    let filtered = transactions;
 
-    // Filter by type
     if (selectedType !== 'all') {
       filtered = filtered.filter(t => t.type === selectedType);
     }
 
-    // Filter by search query
     if (searchQuery) {
+      const query = searchQuery.toLowerCase();
       filtered = filtered.filter(t => 
-        t.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.notes.toLowerCase().includes(searchQuery.toLowerCase())
+        t.category.toLowerCase().includes(query) ||
+        t.notes.toLowerCase().includes(query) ||
+        t.account.toLowerCase().includes(query)
       );
     }
 
-    // Sort by date (newest first)
-    filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    setFilteredTransactions(filtered);
+    return filtered.sort((a, b) => b.createdAt - a.createdAt);
   }, [transactions, searchQuery, selectedType]);
 
+  const accountsList = getAccountsList();
+  
   const getCurrencySymbol = () => {
     const currencies: { [key: string]: string } = {
       'USD': '$',
@@ -52,6 +50,26 @@ function HistoryScreen() {
       'AUD': 'A$',
     };
     return currencies[profile.currency] || '$';
+  };
+  
+  const getAccountName = (accountName: string) => {
+    // Since we now store account names directly, just return the name
+    return accountName || 'Unknown Account';
+  };
+  
+  const getAccountIcon = (accountName: string) => {
+    // Find account by name to get its type for icon
+    const account = accountsList.find(acc => acc.name === accountName);
+    if (!account) return 'wallet-outline';
+    
+    switch (account.type) {
+      case 'cash': return 'cash';
+      case 'bank': return 'card';
+      case 'savings': return 'wallet';
+      case 'credit': return 'card-outline';
+      case 'investment': return 'trending-up';
+      default: return 'wallet-outline';
+    }
   };
 
   const handleSettleTransaction = (transactionId: string) => {
@@ -184,12 +202,12 @@ function HistoryScreen() {
                   <View style={styles.transactionMeta}>
                     <View style={styles.accountBadge}>
                       <Icon 
-                        name={transaction.account === 'cash' ? 'cash' : 'card'} 
+                        name={getAccountIcon(transaction.account)} 
                         size={12} 
                         style={{ color: '#667eea', marginRight: 4 }} 
                       />
                       <Text style={styles.accountText}>
-                        {transaction.account.charAt(0).toUpperCase() + transaction.account.slice(1)}
+                        {getAccountName(transaction.account)}
                       </Text>
                     </View>
                     {(transaction.type === 'borrow' || transaction.type === 'lend') && (

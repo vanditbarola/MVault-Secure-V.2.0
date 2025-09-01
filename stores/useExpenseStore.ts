@@ -6,8 +6,8 @@ export interface Transaction {
   type: 'income' | 'expense' | 'borrow' | 'lend' | 'transfer';
   category: string;
   amount: number;
-  account: 'cash' | 'bank';
-  toAccount?: 'cash' | 'bank';
+  account: string;
+  toAccount?: string;
   date: string;
   notes: string;
   settled: boolean;
@@ -26,9 +26,16 @@ export interface Profile {
   avatarUri?: string;
 }
 
+export interface Account {
+  id: string;
+  name: string;
+  balance: number;
+  type: 'cash' | 'bank' | 'savings' | 'credit' | 'investment' | 'other';
+  createdAt: number;
+}
+
 export interface Accounts {
-  cash: number;
-  bank: number;
+  [key: string]: Account;
 }
 
 interface ExpenseState {
@@ -40,7 +47,11 @@ interface ExpenseState {
   // Actions
   setProfile: (profile: Profile) => void;
   updateAccounts: (accounts: Partial<Accounts>) => void;
+  addAccount: (account: Omit<Account, 'id' | 'createdAt'>) => Promise<void>;
+  updateAccount: (id: string, updates: Partial<Account>) => Promise<void>;
+  deleteAccount: (id: string) => Promise<void>;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt'>) => void;
+  importTransaction: (transaction: Transaction) => void;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
   authenticate: (pin: string) => boolean;
@@ -58,6 +69,9 @@ interface ExpenseState {
     cashflow: number;
   };
   settleBorrowLend: (id: string) => Promise<void>;
+  getTotalBalance: () => number;
+  getAccountsList: () => Account[];
+  getReadableTransactions: () => Transaction[];
 }
 
 const STORAGE_KEYS = {
@@ -78,7 +92,77 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     theme: 'light',
     avatarUri: undefined
   },
-  accounts: { cash: 0, bank: 0 },
+  accounts: {},
+
+  addAccount: async (accountData) => {
+    try {
+      const { accounts } = get();
+      
+      // Check if account name already exists
+      const existingAccount = Object.values(accounts).find(acc => 
+        acc.name.toLowerCase() === accountData.name.toLowerCase()
+      );
+      
+      if (existingAccount) {
+        throw new Error(`Account with name "${accountData.name}" already exists`);
+      }
+      
+      const account: Account = {
+        ...accountData,
+        id: `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: Date.now(),
+      };
+      
+      const updatedAccounts = { ...accounts, [account.id]: account };
+      set({ accounts: updatedAccounts });
+      await AsyncStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(updatedAccounts));
+      console.log('Account added successfully:', account.id);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  updateAccount: async (id, updates) => {
+    try {
+      const accounts = { ...get().accounts };
+      if (accounts[id]) {
+        accounts[id] = { ...accounts[id], ...updates };
+        set({ accounts });
+        await AsyncStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
+        console.log('Account updated successfully:', id);
+      }
+    } catch (error) {
+      console.error('Error updating account:', error);
+    }
+  },
+
+  deleteAccount: async (id) => {
+    try {
+      const accounts = { ...get().accounts };
+      delete accounts[id];
+      set({ accounts });
+      await AsyncStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
+      console.log('Account deleted successfully:', id);
+    } catch (error) {
+      console.error('Error deleting account:', error);
+    }
+  },
+
+  getTotalBalance: () => {
+    const { accounts } = get();
+    return Object.values(accounts).reduce((total, account) => total + account.balance, 0);
+  },
+
+  getAccountsList: () => {
+    const { accounts } = get();
+    return Object.values(accounts).sort((a, b) => a.createdAt - b.createdAt);
+  },
+  
+  getReadableTransactions: () => {
+    const { transactions } = get();
+    // Since we now store account names directly, just return transactions as is
+    return transactions;
+  },
   transactions: [],
   isAuthenticated: false,
 
@@ -122,37 +206,69 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
 
   addTransaction: async (transactionData) => {
     try {
+      const { accounts, transactions } = get();
+      
+      // Convert account ID to name for storage
+      const fromAccount = accounts[transactionData.account];
+      const toAccount = transactionData.toAccount ? accounts[transactionData.toAccount] : null;
+      
       const transaction: Transaction = {
         ...transactionData,
+        account: fromAccount?.name || 'Unknown Account',
+        toAccount: toAccount?.name || transactionData.toAccount,
         id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         createdAt: Date.now(),
       };
       
-      const transactions = [...get().transactions, transaction];
-      set({ transactions });
-      await AsyncStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-      
-      // Update account balances based on transaction type
-      const { accounts } = get();
-      const accountUpdate: Partial<Accounts> = {};
-      
-      if (transaction.type === 'income') {
-        accountUpdate[transaction.account] = accounts[transaction.account] + transaction.amount;
-      } else if (transaction.type === 'expense') {
-        accountUpdate[transaction.account] = accounts[transaction.account] - transaction.amount;
-      } else if (transaction.type === 'transfer' && transaction.toAccount) {
-        accountUpdate[transaction.account] = accounts[transaction.account] - transaction.amount;
-        accountUpdate[transaction.toAccount] = accounts[transaction.toAccount] + transaction.amount;
-      }
-      // Note: Borrow/Lend don't affect account balances directly, only cashflow
-      
-      if (Object.keys(accountUpdate).length > 0) {
-        await get().updateAccounts(accountUpdate);
+      // Update account balances
+      const updatedAccounts = { ...accounts };
+      if (transaction.type === 'income' && updatedAccounts[transactionData.account]) {
+        updatedAccounts[transactionData.account].balance += transaction.amount;
+      } else if (transaction.type === 'expense' && updatedAccounts[transactionData.account]) {
+        updatedAccounts[transactionData.account].balance -= transaction.amount;
+      } else if (transaction.type === 'transfer' && transactionData.toAccount) {
+        if (updatedAccounts[transactionData.account] && updatedAccounts[transactionData.toAccount]) {
+          updatedAccounts[transactionData.account].balance -= transaction.amount;
+          updatedAccounts[transactionData.toAccount].balance += transaction.amount;
+        }
       }
       
-      console.log('Transaction added successfully:', transaction.id);
+      const newTransactions = [...transactions, transaction];
+      
+      // Batch update state and storage
+      set({ transactions: newTransactions, accounts: updatedAccounts });
+      
+      // Async storage operations (non-blocking)
+      Promise.all([
+        AsyncStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(newTransactions)),
+        AsyncStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(updatedAccounts))
+      ]).catch(error => console.error('Storage error:', error));
+      
     } catch (error) {
       console.error('Error adding transaction:', error);
+    }
+  },
+
+  importTransaction: async (transaction) => {
+    try {
+      const { accounts } = get();
+      
+      // Convert account ID to name if it's still an ID
+      const fromAccount = accounts[transaction.account];
+      const toAccount = transaction.toAccount ? accounts[transaction.toAccount] : null;
+      
+      const processedTransaction = {
+        ...transaction,
+        account: fromAccount?.name || transaction.account, // Use name if ID found, otherwise keep as is
+        toAccount: toAccount?.name || transaction.toAccount
+      };
+      
+      const transactions = [...get().transactions, processedTransaction];
+      set({ transactions });
+      await AsyncStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+      console.log('Transaction imported successfully:', transaction.id);
+    } catch (error) {
+      console.error('Error importing transaction:', error);
     }
   },
 
@@ -311,11 +427,11 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     const exportData = {
       profile, // Include PIN in export for encrypted backup
       accounts,
-      transactions,
+      transactions, // Keep original transactions with IDs for backup
       monthlyStats: stats,
       exportDate: new Date().toISOString(),
       totalTransactions: transactions.length,
-      netWorth: accounts.cash + accounts.bank,
+      netWorth: Object.values(accounts).reduce((total, acc) => total + acc.balance, 0),
     };
     console.log('Data exported successfully');
     return JSON.stringify(exportData, null, 2);
@@ -365,7 +481,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
           theme: 'light',
           avatarUri: undefined
         },
-        accounts: { cash: 0, bank: 0 },
+        accounts: {},
         transactions: [],
         isAuthenticated: false,
       });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Modal, Platform, Alert } from 'react-native';
 import { useExpenseStore } from '../../stores/useExpenseStore';
 import { formatCurrency, getCurrencySymbol, getTransactionColor, categories } from '../../utils/helpers';
@@ -9,7 +9,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 const { width } = Dimensions.get('window');
 
 function AnalyticsScreen() {
-  const { transactions, profile, getMonthlyStats } = useExpenseStore();
+  const { transactions, profile, getMonthlyStats, getAccountsList } = useExpenseStore();
   const isDark = profile.theme === 'dark';
   const styles = getStyles(isDark);
   const [dateRange, setDateRange] = useState('month'); // 'week', 'month', 'year', 'all'
@@ -19,6 +19,7 @@ function AnalyticsScreen() {
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [chartType, setChartType] = useState('pie'); // Only pie chart is available
   const [categoryFilter, setCategoryFilter] = useState('all'); // 'all', 'income', 'expense', 'borrow', 'lend'
+  const [accountFilter, setAccountFilter] = useState('all'); // 'all' or specific account ID
   
   useEffect(() => {
     // Set date range based on selection
@@ -53,17 +54,22 @@ function AnalyticsScreen() {
     setEndDate(now);
   }, [dateRange, transactions]);
   
-  // Filter transactions based on date range and category filter
-  const filteredTransactions = transactions.filter(t => {
-    const transactionDate = new Date(t.date);
-    const dateInRange = transactionDate >= startDate && transactionDate <= endDate;
-    
-    if (categoryFilter === 'all') {
-      return dateInRange;
-    } else {
-      return dateInRange && t.type === categoryFilter;
-    }
-  });
+  const accountsList = getAccountsList();
+  
+  // Memoized filtered transactions for better performance
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      if (transactionDate < startDate || transactionDate > endDate) return false;
+      if (categoryFilter !== 'all' && t.type !== categoryFilter) return false;
+      if (accountFilter !== 'all') {
+        const selectedAccount = accountsList.find(acc => acc.id === accountFilter);
+        const selectedAccountName = selectedAccount?.name;
+        if (t.account !== selectedAccountName && t.toAccount !== selectedAccountName) return false;
+      }
+      return true;
+    });
+  }, [transactions, startDate, endDate, categoryFilter, accountFilter, accountsList]);
   
   // Calculate statistics
   const incomeTotal = filteredTransactions
@@ -163,7 +169,7 @@ function AnalyticsScreen() {
       
       {/* Category Filter */}
       <View style={styles.filterContainer}>
-        <Text style={styles.filterLabel}>Filter by:</Text>
+        <Text style={styles.filterLabel}>Filter by Type:</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
           <TouchableOpacity 
             style={[styles.filterButton, categoryFilter === 'all' && styles.filterButtonActive]}
@@ -201,6 +207,30 @@ function AnalyticsScreen() {
           >
             <Text style={[styles.filterButtonText, categoryFilter === 'transfer' && styles.filterButtonTextActive]}>Transfer</Text>
           </TouchableOpacity>
+        </ScrollView>
+      </View>
+      
+      {/* Account Filter */}
+      <View style={styles.filterContainer}>
+        <Text style={styles.filterLabel}>Filter by Account:</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+          <TouchableOpacity 
+            style={[styles.filterButton, accountFilter === 'all' && styles.filterButtonActive]}
+            onPress={() => setAccountFilter('all')}
+          >
+            <Text style={[styles.filterButtonText, accountFilter === 'all' && styles.filterButtonTextActive]}>All Accounts</Text>
+          </TouchableOpacity>
+          {accountsList.map((account) => (
+            <TouchableOpacity 
+              key={account.id}
+              style={[styles.filterButton, accountFilter === account.id && styles.filterButtonActive]}
+              onPress={() => setAccountFilter(account.id)}
+            >
+              <Text style={[styles.filterButtonText, accountFilter === account.id && styles.filterButtonTextActive]}>
+                {account.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </View>
       

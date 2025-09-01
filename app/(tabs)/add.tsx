@@ -5,10 +5,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { categories } from '../../utils/helpers';
 import { useExpenseStore } from '../../stores/useExpenseStore';
 import PinModal from '../../components/PinModal';
+import SuccessModal from '../../components/SuccessModal';
 import Icon from '../../components/Icon';
 
 type TransactionType = 'income' | 'expense' | 'borrow' | 'lend' | 'transfer';
-type AccountType = 'cash' | 'bank';
+// Remove AccountType as we'll use dynamic accounts
 
 const getTypeIcon = (type: TransactionType): keyof typeof import('@expo/vector-icons').Ionicons.glyphMap => {
   switch (type) {
@@ -21,17 +22,18 @@ const getTypeIcon = (type: TransactionType): keyof typeof import('@expo/vector-i
 };
 
 function AddTransactionScreen() {
-  const { addTransaction, authenticate, profile } = useExpenseStore();
+  const { addTransaction, authenticate, profile, getAccountsList } = useExpenseStore();
   const isDark = profile.theme === 'dark';
   const [type, setType] = useState<TransactionType>('expense');
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
-  const [account, setAccount] = useState<AccountType>('cash');
+  const [account, setAccount] = useState<string>('');
   const [date, setDate] = useState(new Date());
   const [notes, setNotes] = useState('');
   const [person, setPerson] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [pendingTransaction, setPendingTransaction] = useState<any>(null);
 
   const getCurrencySymbol = () => {
@@ -61,8 +63,9 @@ function AddTransactionScreen() {
     if (type === 'transfer') {
       const { accounts } = useExpenseStore.getState();
       const transferAmount = parseFloat(amount);
-      if (accounts[account] < transferAmount) {
-        Alert.alert('Error', `Insufficient funds in ${account} account`);
+      const selectedAccount = accounts[account];
+      if (selectedAccount && selectedAccount.balance < transferAmount) {
+        Alert.alert('Error', `Insufficient funds in ${selectedAccount.name} account`);
         return;
       }
     }
@@ -74,10 +77,10 @@ function AddTransactionScreen() {
 
     const transactionData = {
       type,
-      category: type === 'transfer' ? `Transfer from ${account} to ${account === 'cash' ? 'bank' : 'cash'}` : category.trim(),
+      category: type === 'transfer' ? `Transfer from ${accounts[account]?.name || account} to ${getToAccountName()}` : category.trim(),
       amount: parseFloat(amount),
       account,
-      toAccount: type === 'transfer' ? (account === 'cash' ? 'bank' : 'cash') : undefined,
+      toAccount: type === 'transfer' ? getToAccount() : undefined,
       date: date.toISOString().split('T')[0],
       notes: notes.trim(),
       settled: false,
@@ -109,7 +112,7 @@ function AddTransactionScreen() {
         setPerson('');
         setPendingTransaction(null);
         
-        Alert.alert('Success', 'Transaction added successfully!');
+        setShowSuccessModal(true);
       } catch (error) {
         console.error('Error adding transaction:', error);
         Alert.alert('Error', 'Failed to add transaction');
@@ -125,10 +128,36 @@ function AddTransactionScreen() {
     { key: 'transfer', label: 'Transfer', color: '#9C27B0' },
   ];
 
-  const accounts = [
-    { key: 'cash', label: 'Cash', icon: 'cash' },
-    { key: 'bank', label: 'Bank', icon: 'card' },
-  ];
+  const accountsList = getAccountsList();
+  
+  // Set default account if none selected
+  React.useEffect(() => {
+    if (!account && accountsList.length > 0) {
+      setAccount(accountsList[0].id);
+    }
+  }, [accountsList, account]);
+  
+  const getToAccount = () => {
+    const availableAccounts = accountsList.filter(acc => acc.id !== account);
+    return availableAccounts.length > 0 ? availableAccounts[0].id : '';
+  };
+  
+  const getToAccountName = () => {
+    const toAccountId = getToAccount();
+    const toAccount = accountsList.find(acc => acc.id === toAccountId);
+    return toAccount?.name || 'Other Account';
+  };
+  
+  const getAccountIcon = (type: string) => {
+    switch (type) {
+      case 'cash': return 'cash';
+      case 'bank': return 'card';
+      case 'savings': return 'wallet';
+      case 'credit': return 'card-outline';
+      case 'investment': return 'trending-up';
+      default: return 'wallet-outline';
+    }
+  };
 
   const styles = getStyles(isDark);
 
@@ -218,36 +247,42 @@ function AddTransactionScreen() {
         {/* Account Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{type === 'transfer' ? 'From Account' : 'Account'}</Text>
-          <View style={styles.accountGrid}>
-            {accounts.map((accountOption) => (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll}>
+            {accountsList.map((accountOption) => (
               <TouchableOpacity
-                key={accountOption.key}
+                key={accountOption.id}
                 style={[
                   styles.accountButton,
-                  account === accountOption.key && styles.accountButtonActive,
-                  account === accountOption.key && {
-                    backgroundColor: accountOption.key === 'cash' ? '#4CAF50' : '#2196F3'
+                  account === accountOption.id && styles.accountButtonActive,
+                  account === accountOption.id && {
+                    backgroundColor: '#667eea'
                   }
                 ]}
-                onPress={() => setAccount(accountOption.key as AccountType)}
+                onPress={() => setAccount(accountOption.id)}
               >
                 <Icon 
-                  name={accountOption.icon as keyof typeof import('@expo/vector-icons').Ionicons.glyphMap} 
+                  name={getAccountIcon(accountOption.type) as keyof typeof import('@expo/vector-icons').Ionicons.glyphMap} 
                   size={24} 
                   style={[
                     styles.accountIcon,
-                    { color: account === accountOption.key ? 'white' : (accountOption.key === 'cash' ? '#4CAF50' : '#2196F3') }
+                    { color: account === accountOption.id ? 'white' : '#667eea' }
                   ]} 
                 />
                 <Text style={[
                   styles.accountLabel,
-                  { color: account === accountOption.key ? 'white' : '#2c3e50' }
+                  { color: account === accountOption.id ? 'white' : '#2c3e50' }
                 ]}>
-                  {accountOption.label}
+                  {accountOption.name}
+                </Text>
+                <Text style={[
+                  styles.accountBalance,
+                  { color: account === accountOption.id ? 'rgba(255,255,255,0.8)' : '#7f8c8d' }
+                ]}>
+                  {getCurrencySymbol()}{accountOption.balance.toFixed(2)}
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         </View>
 
         {/* Transfer Info */}
@@ -256,7 +291,7 @@ function AddTransactionScreen() {
             <Text style={styles.sectionTitle}>Transfer To</Text>
             <View style={[styles.input, { justifyContent: 'center', alignItems: 'center' }]}>
               <Text style={{ fontSize: 16, color: '#2c3e50', fontWeight: '500' }}>
-                {account === 'cash' ? 'Bank Account' : 'Cash Account'}
+                {getToAccountName()}
               </Text>
             </View>
           </View>
@@ -348,6 +383,14 @@ function AddTransactionScreen() {
         onAuthenticate={authenticate}
         title="Confirm Transaction"
         subtitle="Enter your PIN to add this transaction"
+      />
+      
+      {/* Success Modal */}
+      <SuccessModal
+        visible={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title="Success!"
+        message="Transaction added successfully!"
       />
     </View>
   );
@@ -467,12 +510,10 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     color: '#667eea',
     fontWeight: '500',
   },
-  accountGrid: {
-    flexDirection: 'row',
-    gap: 12,
+  accountScroll: {
+    marginBottom: 12,
   },
   accountButton: {
-    flex: 1,
     backgroundColor: isDark ? '#2a2a2a' : 'white',
     borderRadius: 12,
     padding: 16,
@@ -481,6 +522,8 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     borderColor: isDark ? '#444444' : '#e9ecef',
     boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 2,
+    marginRight: 12,
+    minWidth: 120,
   },
   accountButtonActive: {
     backgroundColor: '#667eea',
@@ -493,6 +536,11 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: isDark ? '#ffffff' : '#2c3e50',
+    marginBottom: 4,
+  },
+  accountBalance: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   dateButton: {
     flexDirection: 'row',

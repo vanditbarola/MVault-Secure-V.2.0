@@ -8,7 +8,7 @@ import { useExpenseStore } from '../stores/useExpenseStore';
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const { setProfile, updateAccounts, clearAllData, addTransaction } = useExpenseStore();
+  const { setProfile, addAccount, clearAllData, importTransaction } = useExpenseStore();
 
   const importOldJsonData = async (jsonData: any) => {
     try {
@@ -19,15 +19,70 @@ export default function WelcomeScreen() {
         await setProfile({ ...jsonData.profile, pin: undefined });
       }
       
-      // Import accounts
+      const accountMapping = {}; // Map old account names to new IDs
+      
+      // Import accounts - handle both old and new format
       if (jsonData.accounts) {
-        await updateAccounts(jsonData.accounts);
+        // Check if it's old format (cash/bank) or new format (dynamic accounts)
+        if (typeof jsonData.accounts.cash !== 'undefined' || typeof jsonData.accounts.bank !== 'undefined') {
+          // Old format - convert to new format
+          if (jsonData.accounts.cash !== undefined) {
+            await addAccount({
+              name: 'Cash',
+              type: 'cash',
+              balance: jsonData.accounts.cash || 0,
+            });
+          }
+          if (jsonData.accounts.bank !== undefined) {
+            await addAccount({
+              name: 'Bank',
+              type: 'bank', 
+              balance: jsonData.accounts.bank || 0,
+            });
+          }
+        } else {
+          // New format - import accounts directly
+          for (const accountId in jsonData.accounts) {
+            const account = jsonData.accounts[accountId];
+            await addAccount({
+              name: account.name,
+              type: account.type,
+              balance: account.balance,
+            });
+          }
+        }
       }
       
-      // Import transactions
+      // Import transactions and map old account names to new IDs
       if (jsonData.transactions && Array.isArray(jsonData.transactions)) {
+        // Wait a bit for accounts to be created
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const { getAccountsList } = useExpenseStore.getState();
+        const accounts = getAccountsList();
+        
+        // Create mapping for old account names to new IDs
+        accounts.forEach(account => {
+          if (account.name === 'Cash') accountMapping['cash'] = account.id;
+          if (account.name === 'Bank') accountMapping['bank'] = account.id;
+        });
+        
+        console.log('Account mapping:', accountMapping);
+        console.log('Available accounts:', accounts.map(a => ({ id: a.id, name: a.name })));
+        
         for (const transaction of jsonData.transactions) {
-          await addTransaction(transaction);
+          const updatedTransaction = { ...transaction };
+          
+          // Map old account names to new IDs
+          if (accountMapping[transaction.account]) {
+            updatedTransaction.account = accountMapping[transaction.account];
+            console.log(`Mapped ${transaction.account} to ${accountMapping[transaction.account]}`);
+          }
+          if (transaction.toAccount && accountMapping[transaction.toAccount]) {
+            updatedTransaction.toAccount = accountMapping[transaction.toAccount];
+          }
+          
+          await importTransaction(updatedTransaction);
         }
       }
     } catch (error) {
@@ -104,10 +159,24 @@ export default function WelcomeScreen() {
       
       await clearAllData();
       await setProfile(backupData.profile);
-      await updateAccounts(backupData.accounts);
       
-      for (const transaction of backupData.transactions) {
-        await useExpenseStore.getState().addTransaction(transaction);
+      // Import accounts
+      if (backupData.accounts) {
+        for (const accountId in backupData.accounts) {
+          const account = backupData.accounts[accountId];
+          await addAccount({
+            name: account.name,
+            type: account.type,
+            balance: account.balance,
+          });
+        }
+      }
+      
+      // Import transactions without updating balances
+      if (backupData.transactions) {
+        for (const transaction of backupData.transactions) {
+          await importTransaction(transaction);
+        }
       }
       
       Alert.alert('Success', 'Data imported successfully! Please set up your PIN.');

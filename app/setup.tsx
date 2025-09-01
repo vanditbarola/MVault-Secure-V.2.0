@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -16,7 +16,7 @@ const currencies = [
 ];
 
 function SetupScreen() {
-  const { setProfile, updateAccounts, profile, accounts } = useExpenseStore();
+  const { setProfile, addAccount, profile, accounts, getAccountsList } = useExpenseStore();
   const [step, setStep] = useState(profile.name ? 2 : 1); // Skip to PIN if data exists
   const [formData, setFormData] = useState({
     name: profile.name || '',
@@ -24,9 +24,24 @@ function SetupScreen() {
     confirmPin: '',
     monthlyBudget: profile.monthlyBudget?.toString() || '',
     currency: profile.currency || 'USD',
-    cashBalance: accounts.cash?.toString() || '',
-    bankBalance: accounts.bank?.toString() || '',
   });
+  
+  const [accountsData, setAccountsData] = useState([
+    { name: 'Cash', type: 'cash', balance: '' },
+    { name: 'Bank', type: 'bank', balance: '' },
+  ]);
+  
+  // Load existing accounts on component mount
+  useEffect(() => {
+    const existingAccounts = getAccountsList();
+    if (existingAccounts.length > 0) {
+      setAccountsData(existingAccounts.map(acc => ({
+        name: acc.name,
+        type: acc.type,
+        balance: acc.balance.toString()
+      })));
+    }
+  }, []);
 
   const handleNext = () => {
     if (step === 1) {
@@ -68,11 +83,19 @@ function SetupScreen() {
         isSetupComplete: true,
       });
 
-      // Save initial account balances
-      await updateAccounts({
-        cash: parseFloat(formData.cashBalance) || 0,
-        bank: parseFloat(formData.bankBalance) || 0,
-      });
+      // Save initial accounts (only if no accounts exist)
+      const existingAccounts = getAccountsList();
+      if (existingAccounts.length === 0) {
+        for (const accountData of accountsData) {
+          if (accountData.name.trim()) {
+            await addAccount({
+              name: accountData.name.trim(),
+              type: accountData.type as 'cash' | 'bank' | 'savings' | 'credit' | 'investment' | 'other',
+              balance: parseFloat(accountData.balance) || 0,
+            });
+          }
+        }
+      }
 
       console.log('Setup completed successfully');
       router.replace('/(tabs)');
@@ -207,7 +230,7 @@ function SetupScreen() {
                 <Text style={styles.currencySymbolInput}>{selectedCurrency?.symbol}</Text>
                 <TextInput
                   style={styles.inputWithCurrency}
-                  placeholder="0.00"
+                  placeholder="Enter budget"
                   value={formData.monthlyBudget}
                   onChangeText={(value) => setFormData(prev => ({ ...prev, monthlyBudget: value }))}
                   keyboardType="numeric"
@@ -231,9 +254,13 @@ function SetupScreen() {
                 <Text style={styles.currencySymbolInput}>{selectedCurrency?.symbol}</Text>
                 <TextInput
                   style={styles.inputWithCurrency}
-                  placeholder="0.00"
-                  value={formData.cashBalance}
-                  onChangeText={(value) => setFormData(prev => ({ ...prev, cashBalance: value }))}
+                  placeholder="Enter amount"
+                  value={accountsData[0]?.balance || ''}
+                  onChangeText={(value) => {
+                    const newAccounts = [...accountsData];
+                    newAccounts[0] = { ...newAccounts[0], balance: value };
+                    setAccountsData(newAccounts);
+                  }}
                   keyboardType="numeric"
                   placeholderTextColor="#bdc3c7"
                 />
@@ -244,15 +271,74 @@ function SetupScreen() {
                 <Text style={styles.currencySymbolInput}>{selectedCurrency?.symbol}</Text>
                 <TextInput
                   style={styles.inputWithCurrency}
-                  placeholder="0.00"
-                  value={formData.bankBalance}
-                  onChangeText={(value) => setFormData(prev => ({ ...prev, bankBalance: value }))}
+                  placeholder="Enter amount"
+                  value={accountsData[1]?.balance || ''}
+                  onChangeText={(value) => {
+                    const newAccounts = [...accountsData];
+                    newAccounts[1] = { ...newAccounts[1], balance: value };
+                    setAccountsData(newAccounts);
+                  }}
                   keyboardType="numeric"
                   placeholderTextColor="#bdc3c7"
                 />
               </View>
+              
+              {accountsData.slice(2).map((account, index) => (
+                <View key={index + 2}>
+                  <View style={styles.accountHeader}>
+                    <TextInput
+                      style={styles.accountNameInput}
+                      placeholder="Account name"
+                      value={account.name}
+                      onChangeText={(value) => {
+                        const newAccounts = [...accountsData];
+                        newAccounts[index + 2].name = value;
+                        setAccountsData(newAccounts);
+                      }}
+                      placeholderTextColor="#bdc3c7"
+                    />
+                    <TouchableOpacity
+                      style={styles.deleteAccountButton}
+                      onPress={() => {
+                        const newAccounts = accountsData.filter((_, i) => i !== index + 2);
+                        setAccountsData(newAccounts);
+                      }}
+                    >
+                      <Icon name="trash" size={16} style={styles.deleteIcon} />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <View style={styles.inputWithSymbol}>
+                    <Text style={styles.currencySymbolInput}>{selectedCurrency?.symbol}</Text>
+                    <TextInput
+                      style={styles.inputWithCurrency}
+                      placeholder="Enter amount"
+                      value={account.balance}
+                      onChangeText={(value) => {
+                        const newAccounts = [...accountsData];
+                        newAccounts[index + 2].balance = value;
+                        setAccountsData(newAccounts);
+                      }}
+                      keyboardType="numeric"
+                      placeholderTextColor="#bdc3c7"
+                    />
+                  </View>
+                </View>
+              ))}
+              
+              <TouchableOpacity
+                style={styles.addAccountButton}
+                onPress={() => {
+                  setAccountsData([...accountsData, { name: '', type: 'other', balance: '' }]);
+                }}
+              >
+                <Icon name="add" size={20} style={styles.addAccountIcon} />
+                <Text style={styles.addAccountText}>Add Another Account</Text>
+              </TouchableOpacity>
             </View>
           )}
+
+
 
           <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
             <Text style={styles.nextButtonText}>
@@ -444,6 +530,101 @@ const styles = StyleSheet.create({
   },
   nextButtonIcon: {
     color: 'white',
+  },
+
+  accountItem: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  accountHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  accountNameInput: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#2c3e50',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  deleteAccountButton: {
+    marginLeft: 12,
+    padding: 8,
+    backgroundColor: '#dc3545',
+    borderRadius: 6,
+  },
+  deleteIcon: {
+    color: 'white',
+  },
+  accountTypeContainer: {
+    marginBottom: 12,
+  },
+  accountTypeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  accountTypeButton: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  accountTypeButtonActive: {
+    backgroundColor: '#667eea',
+    borderColor: '#667eea',
+  },
+  accountTypeText: {
+    fontSize: 12,
+    color: '#2c3e50',
+  },
+  accountTypeTextActive: {
+    color: 'white',
+  },
+  addAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f9ff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#667eea',
+    borderStyle: 'dashed',
+    marginTop: 16,
+  },
+  addAccountIcon: {
+    color: '#667eea',
+    marginRight: 8,
+  },
+  addAccountText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#667eea',
+  },
+  reviewContainer: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+  },
+  reviewLabel: {
+    fontSize: 16,
+    color: '#2c3e50',
+    marginBottom: 8,
+    fontWeight: '500',
   },
 });
 

@@ -23,7 +23,56 @@ if (Platform.OS === 'web') {
 
 export default function ExportScreen() {
   const router = useRouter();
-  const { transactions, profile, accounts } = useExpenseStore();
+  const { transactions, profile, getReadableTransactions } = useExpenseStore();
+  
+  const generateDetailedPDF = async (filteredTransactions: any[], periodText: string) => {
+    const { accounts } = useExpenseStore.getState();
+    
+    // Simple helper function to get account name
+    const getAccountName = (accountId: string) => {
+      if (!accountId) return 'Unknown';
+      const account = accounts[accountId];
+      return account ? account.name : accountId;
+    };
+    
+    // Pre-process transactions with account names
+    const processedTransactions = filteredTransactions.map(t => ({
+      ...t,
+      accountDisplayName: getAccountName(t.account)
+    }));
+    
+    const htmlContent = `
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; margin-bottom: 30px; }
+            .transaction { border-bottom: 1px solid #eee; padding: 10px 0; }
+            .amount { font-weight: bold; }
+            .income { color: green; }
+            .expense { color: red; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>MVault Financial Report</h1>
+            <h3>${periodText}</h3>
+          </div>
+          ${filteredTransactions.map(t => `
+            <div class="transaction">
+              <strong>${t.category}</strong> - ${t.account}
+              <span class="amount ${t.type}">${getCurrencySymbol()}${t.amount}</span>
+              <br><small>${new Date(t.date).toLocaleDateString()} - ${t.type}</small>
+              ${t.notes ? `<br><em>${t.notes}</em>` : ''}
+            </div>
+          `).join('')}
+        </body>
+      </html>
+    `;
+    
+    const { uri } = await Print.printToFileAsync({ html: htmlContent });
+    await Sharing.shareAsync(uri);
+  };
   const [selectedRange, setSelectedRange] = useState('complete');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
@@ -89,7 +138,7 @@ export default function ExportScreen() {
         periodText = `${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`;
       }
 
-      await generateDetailedPDF(selectedRange, startDate, endDate);
+      await generateDetailedPDF(filteredTransactions, periodText);
       Alert.alert('Success', 'PDF exported successfully!');
       router.back();
     } catch (error) {

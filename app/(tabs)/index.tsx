@@ -39,7 +39,7 @@ const formatDate = (date: string): string => {
 };
 
 function DashboardScreenComponent() {
-  const { accounts, transactions, loadData, getMonthlyStats, profile } = useExpenseStore();
+  const { accounts, transactions, loadData, getMonthlyStats, profile, getTotalBalance, getAccountsList } = useExpenseStore();
   const isDark = profile.theme === 'dark';
   const styles = getStyles(isDark);
   
@@ -96,7 +96,8 @@ function DashboardScreenComponent() {
     };
   });
 
-  const netWorth = accounts.cash + accounts.bank;
+  const netWorth = getTotalBalance();
+  const accountsList = getAccountsList();
   const monthlyStats = getMonthlyStats();
 
   const pendingBorrows = transactions
@@ -118,6 +119,28 @@ function DashboardScreenComponent() {
       'AUD': 'A$',
     };
     return currencies[profile.currency] || '$';
+  };
+  
+  const getAccountIcon = (type: string) => {
+    switch (type) {
+      case 'cash': return 'cash';
+      case 'bank': return 'card';
+      case 'savings': return 'wallet';
+      case 'credit': return 'card-outline';
+      case 'investment': return 'trending-up';
+      default: return 'wallet-outline';
+    }
+  };
+  
+  const getAccountColor = (type: string) => {
+    switch (type) {
+      case 'cash': return '#4CAF50';
+      case 'bank': return '#2196F3';
+      case 'savings': return '#FF9800';
+      case 'credit': return '#F44336';
+      case 'investment': return '#9C27B0';
+      default: return '#607D8B';
+    }
   };
 
   return (
@@ -159,18 +182,33 @@ function DashboardScreenComponent() {
             {getCurrencySymbol()}{formatCurrency(netWorth).replace('$', '')}
           </Text>
           <View style={styles.accountBreakdown}>
-            <View style={styles.accountItem}>
-              <Text style={styles.accountLabel}>Cash</Text>
-              <Text style={styles.accountValue}>
-                {getCurrencySymbol()}{formatCurrency(accounts.cash).replace('$', '')}
-              </Text>
-            </View>
-            <View style={styles.accountItem}>
-              <Text style={styles.accountLabel}>Bank</Text>
-              <Text style={styles.accountValue}>
-                {getCurrencySymbol()}{formatCurrency(accounts.bank).replace('$', '')}
-              </Text>
-            </View>
+            {accountsList.length <= 3 ? (
+              accountsList.map((account) => (
+                <View key={account.id} style={styles.accountItem}>
+                  <Text style={styles.accountLabel}>{account.name}</Text>
+                  <Text style={styles.accountValue}>
+                    {getCurrencySymbol()}{formatCurrency(account.balance).replace('$', '')}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <>
+                {accountsList.slice(0, 2).map((account) => (
+                  <View key={account.id} style={styles.accountItem}>
+                    <Text style={styles.accountLabel}>{account.name}</Text>
+                    <Text style={styles.accountValue}>
+                      {getCurrencySymbol()}{formatCurrency(account.balance).replace('$', '')}
+                    </Text>
+                  </View>
+                ))}
+                <View style={styles.accountItem}>
+                  <Text style={styles.accountLabel}>+{accountsList.length - 2} more</Text>
+                  <Text style={styles.accountValue}>
+                    {getCurrencySymbol()}{formatCurrency(accountsList.slice(2).reduce((sum, acc) => sum + acc.balance, 0)).replace('$', '')}
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
         </LinearGradient>
         </Animated.View>
