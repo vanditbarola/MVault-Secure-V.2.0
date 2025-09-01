@@ -1,36 +1,69 @@
 # 💰 MVault-Secure
 
-🚀 **Can you track your full budget without internet or cloud?**  
-MVault says **yes**. It's built for **students, bachelors, and everyday minimalists** who just want privacy, simplicity, and control.
-
-MVault is a **100% offline personal expense tracker** — no login, no ads, no data leaks.
+**A 100% offline personal expense tracker for students and minimalists, featuring PIN protection, comprehensive transaction management, and data export capabilities.**
 
 ---
 
 ## ✨ Features
 
-- 📊 Track **income, expenses, borrowings, and lends**
-- 🔐 **PIN-protected entries** for privacy
-- 📄 Export reports as **PDF** or **JSON backups**
-- 📈 Visualize spending with **clean charts**
-- ☁️ Works fully **offline-first** (no cloud dependency)
+### 🔐 Security & Privacy
+- **PIN Protection**: 4-digit PIN authentication for all transactions
+- **100% Offline**: No internet required, all data stored locally
+- **No Registration**: No accounts, logins, or personal data collection
+- **Local Storage**: Uses AsyncStorage for secure local data persistence
+
+### 💳 Transaction Management
+- **Income Tracking**: Salary, freelance, investments, gifts
+- **Expense Tracking**: Food, transport, bills, entertainment, health
+- **Borrowing & Lending**: Track money borrowed from/lent to others
+- **Account Transfers**: Move money between cash, bank, and custom accounts
+- **Settlement System**: Mark borrow/lend transactions as settled
+
+### 📊 Analytics & Insights
+- **Visual Charts**: Pie charts for expense and income breakdown
+- **Date Filtering**: Week, month, year, all-time, and custom date ranges
+- **Category Analysis**: Detailed breakdown by transaction categories
+- **Account Filtering**: Filter analytics by specific accounts
+- **Net Savings**: Track income vs expenses with progress indicators
+
+### 🏦 Account Management
+- **Multiple Accounts**: Cash, bank, savings, credit, investment accounts
+- **Real-time Balances**: Automatic balance updates with transactions
+- **Custom Accounts**: Add unlimited custom account types
+- **Account Icons**: Visual indicators for different account types
+
+### 🎨 User Experience
+- **Dark/Light Theme**: Toggle between themes
+- **Multi-currency Support**: USD, EUR, GBP, JPY, INR, CAD, AUD
+- **Responsive Design**: Optimized for mobile devices
+- **Intuitive Navigation**: Tab-based navigation with floating action button
+
+### 📤 Data Management
+- **JSON Export**: Export all data for backup
+- **Data Import**: Restore from JSON backups
+- **Clear Data**: Reset all data when needed
+- **Auto-backup**: Automatic local data persistence
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **React Native (Expo)** – Cross-platform app development  
-- **SQLite** – Offline database  
-- **jsPDF + AutoTable** – PDF export  
-- **Recharts / Victory** – Data visualization  
+- **React Native (Expo)** – Cross-platform mobile development
+- **TypeScript** – Type-safe development
+- **Zustand** – Lightweight state management
+- **AsyncStorage** – Local data persistence
+- **React Native Chart Kit** – Data visualization
+- **Expo Router** – File-based navigation
+- **React Native Paper** – UI components
+- **Expo Linear Gradient** – Beautiful gradients
 
 ---
 
 ## 📦 Installation & Setup
 
 ### Prerequisites
-- Node.js (v14 or higher)
-- Expo CLI
+- Node.js (v16 or higher)
+- Expo CLI (`npm install -g @expo/cli`)
 - Expo Go app on your mobile device
 
 ### Steps
@@ -43,7 +76,7 @@ cd mvault-secure
 # Install dependencies
 npm install
 
-# Start the Expo development server
+# Start the development server
 npx expo start
 ```
 
@@ -52,65 +85,125 @@ Scan the QR code with the **Expo Go app** (Android/iOS) to run the app on your d
 
 ---
 
-## 🎯 Why MVault?
-
-Most budget apps are **cloud-heavy** with ads, logins, or premium walls.  
-MVault is **Offline-First** → you own your data, and it stays with you.
-
-**Perfect for:**
-- 🎓 **Students** - Track pocket money and expenses
-- 🏠 **Bachelors** - Manage daily spending without complexity  
-- 💼 **Everyday minimalists** - Simple, clean expense tracking
-
----
-
 ## 📂 Project Structure
 
 ```
 mvault-secure/
-├── src/                    # React Native source code
-├── assets/                 # App icons & visuals
-├── database/              # SQLite local database
+├── app/                    # Expo Router pages
+│   ├── (tabs)/            # Tab navigation screens
+│   │   ├── index.tsx      # Dashboard/Home
+│   │   ├── add.tsx        # Add Transaction
+│   │   ├── analytics.tsx  # Analytics & Charts
+│   │   ├── history.tsx    # Transaction History
+│   │   └── settings.tsx   # Settings & Profile
+│   ├── setup.tsx          # Initial setup wizard
+│   └── _layout.tsx        # Root layout
 ├── components/            # Reusable UI components
+│   ├── Button.tsx         # Custom button component
+│   ├── Icon.tsx           # Icon wrapper
+│   ├── PinModal.tsx       # PIN authentication modal
+│   ├── AccountManager.tsx # Account management
+│   └── SuccessModal.tsx   # Success feedback
+├── stores/                # State management
+│   └── useExpenseStore.ts # Main Zustand store
 ├── utils/                 # Helper functions
-├── App.js                 # Main entry point
-└── README.md              # Documentation
+│   ├── helpers.ts         # Utility functions
+│   ├── errorLogger.ts     # Error handling
+│   └── autoBackup.ts      # Backup utilities
+├── styles/                # Styling
+│   └── commonStyles.ts    # Theme and common styles
+├── contexts/              # React contexts
+│   └── ThemeContext.tsx   # Theme management
+└── hooks/                 # Custom hooks
+    └── useThemedStyles.ts # Theme-aware styling
 ```
 
 ---
 
-## 🔧 Key Features Explained
+## 🎯 Key Features Explained
 
-### 🔒 Privacy First
-- All data stored locally on your device
-- No account creation or login required
-- PIN protection for sensitive entries
+### 🔒 PIN Authentication
+- 4-digit PIN setup during initial configuration
+- PIN required for all transaction operations
+- Secure hash-based PIN storage
+- PIN verification modal for sensitive operations
 
-### 📊 Comprehensive Tracking
-- **Income**: Salary, pocket money, side income
-- **Expenses**: Daily spending, bills, subscriptions
-- **Borrowings**: Money you've borrowed from others
-- **Lends**: Money you've lent to others
+### 💰 Transaction Types
+1. **Income**: Add money to accounts (salary, gifts, etc.)
+2. **Expense**: Subtract money from accounts (food, bills, etc.)
+3. **Borrow**: Track money borrowed (doesn't affect account balance)
+4. **Lend**: Track money lent (doesn't affect account balance)
+5. **Transfer**: Move money between accounts
 
-### 📈 Smart Analytics
-- Visual charts and graphs
-- Monthly/weekly spending patterns
-- Category-wise expense breakdown
+### 📊 Analytics Dashboard
+- **Summary Cards**: Quick overview of income, expenses, borrowing, lending
+- **Pie Charts**: Visual breakdown of expenses and income by category
+- **Progress Bars**: Category-wise spending analysis
+- **Date Filters**: Flexible date range selection
+- **Account Filters**: Filter by specific accounts
 
-### 💾 Data Management
-- Export data as PDF reports
-- JSON backup for data portability
-- Import/restore from backups
+### 🏦 Account System
+- **Default Accounts**: Cash and Bank accounts
+- **Custom Accounts**: Add savings, credit, investment accounts
+- **Balance Tracking**: Real-time balance updates
+- **Account Types**: Visual icons for different account types
 
 ---
 
 ## 🚀 Getting Started
 
-1. **Install the app** using the steps above
-2. **Set up your PIN** for privacy protection
-3. **Add your first transaction** - income, expense, or lending
-4. **View your dashboard** to see spending patterns
-5. **Export reports** whenever needed
+### First Time Setup
+1. **Launch the app** and complete the setup wizard
+2. **Enter your name** and basic information
+3. **Set up a 4-digit PIN** for security
+4. **Configure monthly budget** and currency
+5. **Set initial account balances** (cash, bank, etc.)
+
+### Adding Transactions
+1. **Tap the "+" button** on the dashboard
+2. **Select transaction type** (income, expense, borrow, lend, transfer)
+3. **Enter amount and category**
+4. **Choose account** and add notes if needed
+5. **Confirm with PIN** to save the transaction
+
+### Viewing Analytics
+1. **Navigate to Analytics tab**
+2. **Filter by date range** (week, month, year, custom)
+3. **Filter by transaction type** or account
+4. **View pie charts** and category breakdowns
+5. **Track net savings** and spending patterns
+
+---
+
+## 🔧 Configuration
+
+### Supported Currencies
+- USD ($) - US Dollar
+- EUR (€) - Euro
+- GBP (£) - British Pound
+- JPY (¥) - Japanese Yen
+- INR (₹) - Indian Rupee
+- CAD (C$) - Canadian Dollar
+- AUD (A$) - Australian Dollar
+
+### Account Types
+- **Cash**: Physical cash
+- **Bank**: Bank account
+- **Savings**: Savings account
+- **Credit**: Credit card
+- **Investment**: Investment account
+- **Other**: Custom account type
+
+---
+
+## 📱 Screenshots & Demo
+
+The app features a clean, modern interface with:
+- **Dashboard**: Overview of accounts and recent transactions
+- **Add Transaction**: Intuitive form with category suggestions
+- **Analytics**: Beautiful charts and spending insights
+- **History**: Searchable transaction history
+- **Settings**: Profile management and data export
 
 ---
 
@@ -132,7 +225,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 👨‍💻 Author
+## 👨💻 Author
 
 **Vandit Barola**  
 - 📧 [barolavandit@gmail.com](mailto:barolavandit@gmail.com)  
@@ -142,8 +235,26 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📄 Resume
-👉 [View My Resume](../vanditbarola_resume.pdf)
+## 🎯 Why Choose MVault-Secure?
+
+### ✅ Privacy First
+- **No data collection** or tracking
+- **No internet required** for operation
+- **Local storage only** - your data stays with you
+- **No ads or premium walls**
+
+### ✅ Perfect For
+- 🎓 **Students** - Track pocket money and expenses
+- 🏠 **Bachelors** - Manage daily spending without complexity
+- 💼 **Minimalists** - Simple, clean expense tracking
+- 🔒 **Privacy-conscious users** - Complete offline operation
+
+### ✅ Key Advantages
+- **Instant setup** - no registration required
+- **Comprehensive tracking** - income, expenses, borrowing, lending
+- **Visual insights** - charts and analytics
+- **Secure** - PIN protection for all operations
+- **Portable** - export/import data as needed
 
 ---
 
