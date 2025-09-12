@@ -5,6 +5,12 @@ module.exports = {
     version: "1.0.1",
     orientation: "portrait",
     icon: "./assets/images/natively-dark.png",
+    splash: {
+      image: "./assets/images/natively-dark.png",
+      resizeMode: "contain",
+      backgroundColor: "#667eea",
+      hideExpoLoadingScreen: true
+    },
     userInterfaceStyle: "automatic",
     description: "100% offline personal expense tracker with PIN protection.",
     privacy: "public",
@@ -36,8 +42,7 @@ module.exports = {
     },
     plugins: [
       "expo-font",
-      "expo-router",
-      "expo-splash-screen"
+      "expo-router"
     ],
     scheme: "mvault",
     experiments: {

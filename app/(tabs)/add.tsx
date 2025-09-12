@@ -28,6 +28,7 @@ function AddTransactionScreen() {
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [account, setAccount] = useState<string>('');
+  const [toAccount, setToAccount] = useState<string>('');
   const [date, setDate] = useState(new Date());
   const [notes, setNotes] = useState('');
   const [person, setPerson] = useState('');
@@ -75,12 +76,20 @@ function AddTransactionScreen() {
       return;
     }
 
+    if (type === 'transfer' && (!toAccount || account === toAccount)) {
+      Alert.alert('Error', 'Please select different accounts for transfer');
+      return;
+    }
+
+    const fromAccountName = accountsList.find(acc => acc.id === account)?.name || account;
+    const toAccountName = accountsList.find(acc => acc.id === toAccount)?.name || toAccount;
+
     const transactionData = {
       type,
-      category: type === 'transfer' ? `Transfer from ${accounts[account]?.name || account} to ${getToAccountName()}` : category.trim(),
+      category: type === 'transfer' ? `Transfer from ${fromAccountName} to ${toAccountName}` : category.trim(),
       amount: parseFloat(amount),
       account,
-      toAccount: type === 'transfer' ? getToAccount() : undefined,
+      toAccount: type === 'transfer' ? toAccount : undefined,
       date: date.toISOString().split('T')[0],
       notes: notes.trim(),
       settled: false,
@@ -110,6 +119,7 @@ function AddTransactionScreen() {
         setNotes('');
         setDate(new Date());
         setPerson('');
+        setToAccount('');
         setPendingTransaction(null);
         
         setShowSuccessModal(true);
@@ -135,17 +145,18 @@ function AddTransactionScreen() {
     if (!account && accountsList.length > 0) {
       setAccount(accountsList[0].id);
     }
-  }, [accountsList, account]);
+    // Set default toAccount for transfers
+    if (type === 'transfer' && !toAccount && accountsList.length > 1) {
+      const availableAccounts = accountsList.filter(acc => acc.id !== account);
+      if (availableAccounts.length > 0) {
+        setToAccount(availableAccounts[0].id);
+      }
+    }
+  }, [accountsList, account, type, toAccount]);
   
-  const getToAccount = () => {
-    const availableAccounts = accountsList.filter(acc => acc.id !== account);
-    return availableAccounts.length > 0 ? availableAccounts[0].id : '';
-  };
-  
-  const getToAccountName = () => {
-    const toAccountId = getToAccount();
-    const toAccount = accountsList.find(acc => acc.id === toAccountId);
-    return toAccount?.name || 'Other Account';
+  // Get available accounts for "To Account" (excluding selected "From Account")
+  const getAvailableToAccounts = () => {
+    return accountsList.filter(acc => acc.id !== account);
   };
   
   const getAccountIcon = (type: string) => {
@@ -178,7 +189,15 @@ function AddTransactionScreen() {
                 key={typeOption.key}
                 style={[
                   styles.typeButton,
-                  type === typeOption.key && { backgroundColor: typeOption.color }
+                  type === typeOption.key && { 
+                    backgroundColor: typeOption.color,
+                    borderColor: typeOption.color,
+                    shadowColor: typeOption.color,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 4,
+                    elevation: 4,
+                  }
                 ]}
                 onPress={() => setType(typeOption.key as TransactionType)}
               >
@@ -192,7 +211,7 @@ function AddTransactionScreen() {
                 />
                 <Text style={[
                   styles.typeLabel,
-                  { color: type === typeOption.key ? 'white' : '#2c3e50' }
+                  { color: type === typeOption.key ? 'white' : (isDark ? '#ffffff' : '#2c3e50') }
                 ]}>
                   {typeOption.label}
                 </Text>
@@ -234,10 +253,16 @@ function AddTransactionScreen() {
               {categories[type]?.map((cat) => (
                 <TouchableOpacity
                   key={cat}
-                  style={styles.categoryChip}
+                  style={[
+                    styles.categoryChip,
+                    category === cat && styles.categoryChipActive
+                  ]}
                   onPress={() => setCategory(cat)}
                 >
-                  <Text style={styles.categoryChipText}>{cat}</Text>
+                  <Text style={[
+                    styles.categoryChipText,
+                    category === cat && styles.categoryChipTextActive
+                  ]}>{cat}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -285,15 +310,46 @@ function AddTransactionScreen() {
           </ScrollView>
         </View>
 
-        {/* Transfer Info */}
+        {/* To Account Selection (for Transfer) */}
         {type === 'transfer' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Transfer To</Text>
-            <View style={[styles.input, { justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{ fontSize: 16, color: '#2c3e50', fontWeight: '500' }}>
-                {getToAccountName()}
-              </Text>
-            </View>
+            <Text style={styles.sectionTitle}>To Account</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountScroll}>
+              {getAvailableToAccounts().map((accountOption) => (
+                <TouchableOpacity
+                  key={accountOption.id}
+                  style={[
+                    styles.accountButton,
+                    toAccount === accountOption.id && styles.accountButtonActive,
+                    toAccount === accountOption.id && {
+                      backgroundColor: '#9C27B0'
+                    }
+                  ]}
+                  onPress={() => setToAccount(accountOption.id)}
+                >
+                  <Icon 
+                    name={getAccountIcon(accountOption.type) as keyof typeof import('@expo/vector-icons').Ionicons.glyphMap} 
+                    size={24} 
+                    style={[
+                      styles.accountIcon,
+                      { color: toAccount === accountOption.id ? 'white' : '#9C27B0' }
+                    ]} 
+                  />
+                  <Text style={[
+                    styles.accountLabel,
+                    { color: toAccount === accountOption.id ? 'white' : '#2c3e50' }
+                  ]}>
+                    {accountOption.name}
+                  </Text>
+                  <Text style={[
+                    styles.accountBalance,
+                    { color: toAccount === accountOption.id ? 'rgba(255,255,255,0.8)' : '#7f8c8d' }
+                  ]}>
+                    {getCurrencySymbol()}{accountOption.balance.toFixed(2)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         )}
 
@@ -497,7 +553,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     marginTop: 12,
   },
   categoryChip: {
-    backgroundColor: '#f8f9ff',
+    backgroundColor: isDark ? '#2a2a2a' : '#f8f9ff',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -505,10 +561,16 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
     borderWidth: 1,
     borderColor: '#667eea',
   },
+  categoryChipActive: {
+    backgroundColor: '#667eea',
+  },
   categoryChipText: {
     fontSize: 14,
     color: '#667eea',
     fontWeight: '500',
+  },
+  categoryChipTextActive: {
+    color: 'white',
   },
   accountScroll: {
     marginBottom: 12,

@@ -3,6 +3,7 @@ import { Platform, SafeAreaView, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useGlobalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+
 import { setupErrorLogging } from '../utils/errorLogger';
 import { useExpenseStore } from '../stores/useExpenseStore';
 import { createThemedStyles } from '../styles/commonStyles';
@@ -24,17 +25,15 @@ export default function RootLayout() {
         setupErrorLogging();
         
         // Load data from AsyncStorage
-        console.log('Initializing app and loading data...');
         await loadData();
         
         // Initialize auto backup manager
         autoBackupManager.init();
         
-        console.log('App initialized successfully');
         setIsReady(true);
       } catch (error) {
         console.error('Error initializing app:', error);
-        setIsReady(true); // Still set ready to avoid infinite loading
+        setIsReady(true);
       }
     };
 
@@ -47,7 +46,7 @@ export default function RootLayout() {
   }, [emulate]);
 
   if (!isReady) {
-    return null; // Or a loading screen
+    return null;
   }
 
   const { theme } = profile;

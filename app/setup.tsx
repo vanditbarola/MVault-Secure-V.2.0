@@ -22,7 +22,7 @@ function SetupScreen() {
     name: profile.name || '',
     pin: '',
     confirmPin: '',
-    monthlyBudget: profile.monthlyBudget?.toString() || '',
+    monthlyBudget: profile.monthlyBudget ? profile.monthlyBudget.toString() : '',
     currency: profile.currency || 'USD',
   });
   

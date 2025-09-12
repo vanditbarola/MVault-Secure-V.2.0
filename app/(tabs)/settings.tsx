@@ -1518,7 +1518,12 @@ const generateDetailedPDF = async (dateRange = 'complete', startDate = null, end
       </View>
 
       {/* Currency Selection Modal */}
-      {showCurrencyModal && (
+      <Modal
+        visible={showCurrencyModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCurrencyModal(false)}
+      >
         <View style={themedStyles.modalOverlay}>
           <View style={themedStyles.modalContainer}>
             <View style={themedStyles.modalHeader}>
@@ -1550,7 +1555,7 @@ const generateDetailedPDF = async (dateRange = 'complete', startDate = null, end
             </ScrollView>
           </View>
         </View>
-      )}
+      </Modal>
 
 
 
@@ -1694,6 +1699,7 @@ const generateDetailedPDF = async (dateRange = 'complete', startDate = null, end
               <TextInput
                 style={themedStyles.passwordInput}
                 placeholder="Enter password"
+                placeholderTextColor={colors.muted}
                 value={passwordAction === 'export' ? exportPassword : importPassword}
                 onChangeText={passwordAction === 'export' ? setExportPassword : setImportPassword}
                 secureTextEntry
@@ -2156,7 +2162,7 @@ const createStyles = (colors, isDark) => ({
     fontWeight: '600',
   },
   passwordInput: {
-    backgroundColor: isDark ? colors.card : colors.background,
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
